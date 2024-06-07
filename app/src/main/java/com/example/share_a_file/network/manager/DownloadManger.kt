@@ -1,4 +1,4 @@
-package com.example.share_a_file.network
+package com.example.share_a_file.network.manager
 
 import android.app.ProgressDialog
 import android.content.Context
