@@ -6,7 +6,6 @@ import android.util.Log
 
 object ConnectionStateListener {
 
-
     private const val DEBUG_TAG = "NetworkStatusExample"
 
     private var connMgr: ConnectivityManager? = null
