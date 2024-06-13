@@ -3,6 +3,7 @@ package com.example.share_a_file.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.net.NetworkInfo
 import android.net.wifi.p2p.WifiP2pManager
 import android.util.Log
 import com.example.share_a_file.MainActivity
@@ -31,8 +32,14 @@ class WiFiDirectBroadcastReceiver(
                 Log.d(TAG, "P2P peers changed")
             }
             WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
-
                 // Connection state changed! We should probably do something about that.
+                val networkInfo = intent.getParcelableExtra<NetworkInfo>(
+                    WifiP2pManager.EXTRA_NETWORK_INFO)
+                if (networkInfo?.isConnected!!){
+                    manager.requestConnectionInfo(channel, activity.connectionInfoListener)
+                }else{
+                    activity.connectionInfoListener.status = "Not Connected"
+                }
 
             }
 //            WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION -> {

@@ -15,12 +15,12 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.share_a_file.adapter.PeersRecyclerViewAdapter
+import com.example.share_a_file.listeners.WiFiConnectionInfoListener
 import com.example.share_a_file.network.manager.DownloadManager
 import com.example.share_a_file.receiver.WiFiDirectBroadcastReceiver
 import com.example.test.databinding.ActivityMainLayoutBinding
@@ -29,17 +29,10 @@ class MainActivity : ComponentActivity() {
 
     private lateinit var binding:ActivityMainLayoutBinding
     private var permissionsGranted = false
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    private val permissionsList = arrayOf(
-        Manifest.permission.NEARBY_WIFI_DEVICES,
-        Manifest.permission.ACCESS_WIFI_STATE,
-        Manifest.permission.CHANGE_WIFI_STATE,
-        Manifest.permission.ACCESS_NETWORK_STATE,
-    )
+
     // Permissions launcher
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
-    private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()){ permission ->
-        if (permission[permissionsList[0]] == true){
+    private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()){ isGranted ->
+        if (isGranted){
             permissionsGranted = true
             Toast.makeText(applicationContext,"Permission granted", Toast.LENGTH_SHORT)
         }else{
@@ -85,52 +78,28 @@ class MainActivity : ComponentActivity() {
                 setUpRecyclerView()
             }
         }
-
     }
 
-    private fun setUpRecyclerView() {
-        adapter = PeersRecyclerViewAdapter(deviceNameList){model->
-            deviceList.forEach { device ->
-                val config = WifiP2pConfig()
-                config.deviceAddress = device.deviceAddress
-                manager.connect(
-                    channel,
-                    config,
-                    object : WifiP2pManager.ActionListener {
-                        override fun onSuccess() {
-                            binding.tvStatus.text = "Connected: ${device.deviceName}"
-                        }
+    // Connection Info Listener
+    val connectionInfoListener = WiFiConnectionInfoListener
 
-                        override fun onFailure(reason: Int) {
-                            binding.tvStatus.text = "Not Connected"
-                        }
-                })
-            }
-        }
-
-        recyclerView.layoutManager = LinearLayoutManager(this)
-        recyclerView.adapter = adapter
-    }
-
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    @SuppressLint("InlinedApi")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainLayoutBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        if (checkPermissions()){
-            permissionsGranted = true
-        }else{
-            permissionLauncher.launch(permissionsList)
+        if (checkPermissions().not()){
+            permissionLauncher.launch(Manifest.permission.NEARBY_WIFI_DEVICES)
         }
 
-        initialize()
+        initializeIntentFilters()
 
-        exqListener()
+        setUpOnClickListeners()
 
     }
 
-    private fun exqListener() {
+    private fun setUpOnClickListeners() {
 
         // On Off wifi listener
         binding.btnOnOff.setOnClickListener {
@@ -160,7 +129,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun initialize() {
+    private fun initializeIntentFilters() {
         manager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
         channel = manager.initialize(this, mainLooper, null)
 
@@ -174,8 +143,30 @@ class MainActivity : ComponentActivity() {
 
         // Indicates the state of Wi-Fi Direct connectivity has changed.
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
+    }
 
-        recyclerView = binding.rvPeers
+    private fun setUpRecyclerView() {
+        adapter = PeersRecyclerViewAdapter(deviceNameList){model->
+            deviceList.forEach { device ->
+                val config = WifiP2pConfig()
+                config.deviceAddress = device.deviceAddress
+                manager.connect(
+                    channel,
+                    config,
+                    object : WifiP2pManager.ActionListener {
+                        override fun onSuccess() {
+                            binding.tvStatus.text = "Connected: ${device.deviceName}"
+                        }
+
+                        override fun onFailure(reason: Int) {
+                            binding.tvStatus.text = "Not Connected"
+                        }
+                    })
+            }
+        }
+
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        recyclerView.adapter = adapter
     }
 
     override fun onResume() {
@@ -189,15 +180,11 @@ class MainActivity : ComponentActivity() {
         unregisterReceiver(receiver)
     }
 
-    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     private fun checkPermissions():Boolean{
-        if (checkSelfPermission(permissionsList[0]) != PackageManager.PERMISSION_GRANTED &&
-            checkSelfPermission(permissionsList[1]) != PackageManager.PERMISSION_GRANTED &&
-            checkSelfPermission(permissionsList[2]) != PackageManager.PERMISSION_GRANTED &&
-            checkSelfPermission(permissionsList[2]) != PackageManager.PERMISSION_GRANTED
-            ){
-           return false
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU){
+            checkSelfPermission(Manifest.permission.NEARBY_WIFI_DEVICES) == PackageManager.PERMISSION_GRANTED
+        }else{
+            true
         }
-        return true
     }
 }
