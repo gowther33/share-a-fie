@@ -1,4 +1,4 @@
-package com.example.share_a_file.listeners
+package com.example.share_a_file.network.listeners
 
 import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager

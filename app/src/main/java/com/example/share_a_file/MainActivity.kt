@@ -20,7 +20,7 @@ import androidx.annotation.RequiresApi
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.share_a_file.adapter.PeersRecyclerViewAdapter
-import com.example.share_a_file.listeners.WiFiConnectionInfoListener
+import com.example.share_a_file.network.listeners.WiFiConnectionInfoListener
 import com.example.share_a_file.network.manager.DownloadManager
 import com.example.share_a_file.receiver.WiFiDirectBroadcastReceiver
 import com.example.test.databinding.ActivityMainLayoutBinding
