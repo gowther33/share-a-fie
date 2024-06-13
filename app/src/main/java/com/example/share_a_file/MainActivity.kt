@@ -1,24 +1,55 @@
 package com.example.share_a_file
 
+import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.IntentFilter
-import android.net.wifi.WpsInfo
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pDevice
+import android.net.wifi.p2p.WifiP2pDeviceList
 import android.net.wifi.p2p.WifiP2pManager
 import android.os.Bundle
-import android.util.Log
+import android.provider.Settings
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.RequiresApi
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
+import com.example.share_a_file.adapter.PeersRecyclerViewAdapter
 import com.example.share_a_file.network.manager.DownloadManager
-import com.example.share_a_file.receiver.WiFiBroadcastReceiver
+import com.example.share_a_file.receiver.WiFiDirectBroadcastReceiver
 import com.example.test.databinding.ActivityMainLayoutBinding
 
 class MainActivity : ComponentActivity() {
 
     private lateinit var binding:ActivityMainLayoutBinding
+    private var permissionsGranted = false
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    private val permissionsList = arrayOf(
+        Manifest.permission.NEARBY_WIFI_DEVICES,
+        Manifest.permission.ACCESS_WIFI_STATE,
+        Manifest.permission.CHANGE_WIFI_STATE,
+        Manifest.permission.ACCESS_NETWORK_STATE,
+    )
+    // Permissions launcher
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()){ permission ->
+        if (permission[permissionsList[0]] == true){
+            permissionsGranted = true
+            Toast.makeText(applicationContext,"Permission granted", Toast.LENGTH_SHORT)
+        }else{
+            Toast.makeText(applicationContext,"Permission denied", Toast.LENGTH_SHORT)
+        }
+    }
+
     lateinit var dm : DownloadManager
-    lateinit var receiver:WiFiBroadcastReceiver
+
+    lateinit var receiver:WiFiDirectBroadcastReceiver
     private val intentFilter = IntentFilter()
     private lateinit var channel: WifiP2pManager.Channel
     private lateinit var manager: WifiP2pManager
@@ -26,32 +57,114 @@ class MainActivity : ComponentActivity() {
     var isWifiP2pEnabled:Boolean = false
 
     private val peers = mutableListOf<WifiP2pDevice>()
+    val deviceNameList = ArrayList<PeersModel>()
+    val deviceList = ArrayList<WifiP2pDevice>()
 
-    val peerListListener = WifiP2pManager.PeerListListener { peerList ->
-        val refreshedPeers = peerList.deviceList
-        if (refreshedPeers != peers) {
-            peers.clear()
-            peers.addAll(refreshedPeers)
+    private lateinit var recyclerView:RecyclerView
+    private lateinit var adapter:PeersRecyclerViewAdapter
 
-            // If an AdapterView is backed by this data, notify it
-            // of the change. For instance, if you have a ListView of
-            // available peers, trigger an update.
-//            (listAdapter as WiFiPeerListAdapter).notifyDataSetChanged()
+    // Peers listener
+    val peerListListener =  object: WifiP2pManager.PeerListListener{
 
-            // Perform any other updates needed based on the new list of
-            // peers connected to the Wi-Fi P2P network.
+        override fun onPeersAvailable(wiFiP2pDeviceList: WifiP2pDeviceList?) {
+            if(wiFiP2pDeviceList?.equals(peers)?.not()!!){
+
+                if (wiFiP2pDeviceList.deviceList.size == 0){
+                    binding.tvStatus.text = "No Device found"
+                    return
+                }
+
+                peers.clear()
+                peers.addAll(wiFiP2pDeviceList.deviceList)
+
+                wiFiP2pDeviceList.deviceList.forEach{device->
+                    deviceNameList.add(PeersModel(device.deviceName))
+                    deviceList.add(device)
+                }
+
+                setUpRecyclerView()
+            }
         }
 
-        if (peers.isEmpty()) {
-            Log.d("TAG", "No devices found")
-            return@PeerListListener
-        }
     }
 
+    private fun setUpRecyclerView() {
+        adapter = PeersRecyclerViewAdapter(deviceNameList){model->
+            deviceList.forEach { device ->
+                val config = WifiP2pConfig()
+                config.deviceAddress = device.deviceAddress
+                manager.connect(
+                    channel,
+                    config,
+                    object : WifiP2pManager.ActionListener {
+                        override fun onSuccess() {
+                            binding.tvStatus.text = "Connected: ${device.deviceName}"
+                        }
+
+                        override fun onFailure(reason: Int) {
+                            binding.tvStatus.text = "Not Connected"
+                        }
+                })
+            }
+        }
+
+        recyclerView.layoutManager = LinearLayoutManager(this)
+        recyclerView.adapter = adapter
+    }
+
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityMainLayoutBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        if (checkPermissions()){
+            permissionsGranted = true
+        }else{
+            permissionLauncher.launch(permissionsList)
+        }
+
+        initialize()
+
+        exqListener()
+
+    }
+
+    private fun exqListener() {
+
+        // On Off wifi listener
+        binding.btnOnOff.setOnClickListener {
+            val intent = Intent(Settings.ACTION_WIFI_SETTINGS)
+            startActivity(intent)
+        }
+
+        // Discover peers
+        binding.btnDiscover.setOnClickListener {
+            manager.discoverPeers(channel, object : WifiP2pManager.ActionListener {
+
+                @SuppressLint("SetTextI18n")
+                override fun onSuccess() {
+                    // Code for when the discovery initiation is successful goes here.
+                    // No services have actually been discovered yet, so this method
+                    // can often be left blank. Code for peer discovery goes in the
+                    // onReceive method, detailed below.
+                    binding.tvStatus.text = "Discovering..."
+                }
+
+                override fun onFailure(reasonCode: Int) {
+                    // Code for when the discovery initiation fails goes here.
+                    // Alert the user that something went wrong.
+                    binding.tvStatus.text = "Discovery failed"
+                }
+            })
+        }
+    }
+
+    private fun initialize() {
+        manager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
+        channel = manager.initialize(this, mainLooper, null)
+
+        receiver = WiFiDirectBroadcastReceiver(manager, channel, this)
 
         // Indicates a change in the Wi-Fi Direct status.
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION)
@@ -62,52 +175,12 @@ class MainActivity : ComponentActivity() {
         // Indicates the state of Wi-Fi Direct connectivity has changed.
         intentFilter.addAction(WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION)
 
-        // Indicates this device's details have changed.
-        intentFilter.addAction(WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION)
-
-        manager = getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
-        channel = manager.initialize(this, mainLooper, null)
-
-        manager.discoverPeers(channel, object : WifiP2pManager.ActionListener {
-
-            override fun onSuccess() {
-                // Code for when the discovery initiation is successful goes here.
-                // No services have actually been discovered yet, so this method
-                // can often be left blank. Code for peer discovery goes in the
-                // onReceive method, detailed below.
-            }
-
-            override fun onFailure(reasonCode: Int) {
-                // Code for when the discovery initiation fails goes here.
-                // Alert the user that something went wrong.
-            }
-        })
-
-
-
-
-//        button.setOnClickListener {
-//            ConnectionStateListener.getConnectionState(this)
-//            if (ConnectionStateListener.isWifiConn){
-//                val url = "https://images.unsplash.com/photo-1570051008600-b34baa49e751?q=80&w=2085&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
-//                dm.onPreExecute()
-//
-//                CoroutineScope(Dispatchers.IO).launch {
-//                    val bm = dm.doInBackground(url)
-//                    withContext(Dispatchers.Main){
-//                        dm.onPostExecute(bm)
-//                    }
-//                }
-//            }
-//            else{
-//                Toast.makeText(this, "No Wifi", Toast.LENGTH_LONG).show()
-//            }
-//        }
+        recyclerView = binding.rvPeers
     }
 
     override fun onResume() {
         super.onResume()
-        receiver = WiFiBroadcastReceiver(manager, channel, this)
+        receiver = WiFiDirectBroadcastReceiver(manager, channel, this)
         registerReceiver(receiver, intentFilter)
     }
 
@@ -116,29 +189,15 @@ class MainActivity : ComponentActivity() {
         unregisterReceiver(receiver)
     }
 
-    fun connectToPeer(){
-        // Picking the first device found on the network.
-        val device = peers[0]
-
-        val config = WifiP2pConfig().apply {
-            deviceAddress = device.deviceAddress
-            wps.setup = WpsInfo.PBC
+    @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+    private fun checkPermissions():Boolean{
+        if (checkSelfPermission(permissionsList[0]) != PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(permissionsList[1]) != PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(permissionsList[2]) != PackageManager.PERMISSION_GRANTED &&
+            checkSelfPermission(permissionsList[2]) != PackageManager.PERMISSION_GRANTED
+            ){
+           return false
         }
-
-        manager.connect(channel, config, object : WifiP2pManager.ActionListener {
-
-            override fun onSuccess() {
-                // WiFiDirectBroadcastReceiver notifies us. Ignore for now.
-            }
-
-            override fun onFailure(reason: Int) {
-                Toast.makeText(
-                    this@MainActivity,
-                    "Connect failed. Retry.",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }
-        })
-
+        return true
     }
 }

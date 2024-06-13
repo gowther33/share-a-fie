@@ -1,15 +1,13 @@
 package com.example.share_a_file.receiver
 
-import android.app.Activity
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pManager
 import android.util.Log
 import com.example.share_a_file.MainActivity
 
-class WiFiBroadcastReceiver(
+class WiFiDirectBroadcastReceiver(
     val manager: WifiP2pManager,
     val channel:WifiP2pManager.Channel,
     private val activity:MainActivity
@@ -20,15 +18,11 @@ class WiFiBroadcastReceiver(
     override fun onReceive(context: Context?, intent: Intent?) {
         when(intent?.action) {
             WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION -> {
-                // Determine if Wi-Fi Direct mode is enabled or not, alert
-                // the Activity.
+                // Determine if Wi-Fi Direct mode is enabled or not, alert the Activity.
                 val state = intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1)
                 activity.isWifiP2pEnabled = state == WifiP2pManager.WIFI_P2P_STATE_ENABLED
             }
             WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION -> {
-
-                // The peer list has changed! We should probably do something about
-                // that.
                 // Request available peers from the wifi p2p manager. This is an
                 // asynchronous call and the calling activity is notified with a
                 // callback on PeerListListener.onPeersAvailable()
@@ -38,8 +32,7 @@ class WiFiBroadcastReceiver(
             }
             WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
 
-                // Connection state changed! We should probably do something about
-                // that.
+                // Connection state changed! We should probably do something about that.
 
             }
 //            WifiP2pManager.WIFI_P2P_THIS_DEVICE_CHANGED_ACTION -> {
