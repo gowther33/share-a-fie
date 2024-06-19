@@ -20,8 +20,8 @@ class WiFiDirectBroadcastReceiver(
         when(intent?.action) {
             WifiP2pManager.WIFI_P2P_STATE_CHANGED_ACTION -> {
                 // Determine if Wi-Fi Direct mode is enabled or not, alert the Activity.
-                val state = intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1)
-                activity.isWifiP2pEnabled = state == WifiP2pManager.WIFI_P2P_STATE_ENABLED
+//                val state = intent.getIntExtra(WifiP2pManager.EXTRA_WIFI_STATE, -1)
+//                activity.isWifiP2pEnabled = state == WifiP2pManager.WIFI_P2P_STATE_ENABLED
             }
             WifiP2pManager.WIFI_P2P_PEERS_CHANGED_ACTION -> {
                 // Request available peers from the wifi p2p manager. This is an

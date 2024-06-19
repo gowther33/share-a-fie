@@ -88,6 +88,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityMainLayoutBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        recyclerView = binding.rvPeers
 
         if (checkPermissions().not()){
             permissionLauncher.launch(Manifest.permission.NEARBY_WIFI_DEVICES)
@@ -154,8 +155,15 @@ class MainActivity : ComponentActivity() {
                     channel,
                     config,
                     object : WifiP2pManager.ActionListener {
+                        @SuppressLint("SetTextI18n")
                         override fun onSuccess() {
-                            binding.tvStatus.text = "Connected: ${device.deviceName}"
+                            val type = WiFiConnectionInfoListener.status
+                            if (type == "Client"){
+                                binding.tvStatus.text = "Connected: ${device.deviceName}"
+                            }else{
+                                binding.tvStatus.text = type
+                            }
+
                         }
 
                         override fun onFailure(reason: Int) {
